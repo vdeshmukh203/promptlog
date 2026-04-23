@@ -113,7 +113,7 @@ class PromptRecord:
 class PromptLogger:
     """SQLite-backed logger for prompt/response pairs with search and export."""
 
-    def __init__(self, db_path: Union[str, Path] = ":memory:"):
+    def __init__(self, db_path: Union[str, Path] = ":memory:", backend: str = "sqlite"):
         """Initialize logger with SQLite database.
 
         Args:
@@ -160,7 +160,7 @@ class PromptLogger:
                 )
             """)
             conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_model ON records(model)
+                CREATE INDEX IF NOTEXISTS idx_model ON records(model)
             """)
             conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_timestamp ON records(timestamp)
