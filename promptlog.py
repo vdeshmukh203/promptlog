@@ -109,22 +109,43 @@ class PromptRecord:
             response_hash=data.get("response_hash", ""),
         )
 
+    def get(self, key: str, default: Any = None) -> Any:
+        """Dict-like .get() for compatibility with dict-based code."""
+        return self.to_dict().get(key, default)
+
 
 class PromptLogger:
-    """SQLite-backed logger for prompt/response pairs with search and export."""
+    """SQLite/JSONL-backed logger for prompt/response pairs with search and export."""
 
     def __init__(self, db_path: Union[str, Path] = ":memory:", backend: str = "sqlite"):
-        """Initialize logger with SQLite database.
+        """Initialize logger.
 
         Args:
-            db_path: Path to SQLite database file, or ':memory:' for in-memory.
+            db_path: Path to SQLite database file, ':memory:', or JSONL file path.
+            backend: 'sqlite' or 'jsonl'
         """
         self.db_path = str(db_path)
+        self.backend = backend
         # For in-memory databases, keep a persistent connection
         self._persistent_conn: Optional[sqlite3.Connection] = None
-        if self.db_path == ":memory:":
-            self._persistent_conn = sqlite3.connect(self.db_path, check_same_thread=False)
-        self._init_db()
+        self._jsonl_records: List[PromptRecord] = []
+        if backend == "jsonl":
+            # Load existing records from JSONL file if it exists
+            import pathlib as _pathlib
+            p = _pathlib.Path(self.db_path)
+            if p.exists():
+                with open(self.db_path, "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if line:
+                            try:
+                                self._jsonl_records.append(PromptRecord.from_dict(json.loads(line)))
+                            except Exception:
+                                pass
+        else:
+            if self.db_path == ":memory:":
+                self._persistent_conn = sqlite3.connect(self.db_path, check_same_thread=False)
+            self._init_db()
 
     def _get_connection(self) -> sqlite3.Connection:
         """Get database connection (persistent for in-memory, new for files)."""
@@ -160,7 +181,7 @@ class PromptLogger:
                 )
             """)
             conn.execute("""
-                CREATE INDEX IF NOTEXISTS idx_model ON records(model)
+                CREATE INDEX IF NOT EXISTS idx_model ON records(model)
             """)
             conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_timestamp ON records(timestamp)
@@ -181,18 +202,7 @@ class PromptLogger:
         tags: Optional[List[str]] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> PromptRecord:
-        """Log a prompt/response pair.
-
-        Args:
-            prompt: The input prompt text
-            response: The response text
-            model: Model identifier (e.g., 'gpt-4', 'claude-3')
-            tags: List of tag strings for categorization
-            metadata: Optional dictionary of additional metadata
-
-        Returns:
-            PromptRecord with computed hashes and IDs
-        """
+        """Log a prompt/response pair."""
         if tags is None:
             tags = []
         if metadata is None:
@@ -205,6 +215,12 @@ class PromptLogger:
             tags=tags,
             metadata=metadata,
         )
+
+        if self.backend == "jsonl":
+            self._jsonl_records.append(record)
+            with open(self.db_path, "a", encoding="utf-8") as f:
+                f.write(json.dumps(record.to_dict()) + "\n")
+            return record
 
         conn = self._get_connection()
         try:
@@ -261,18 +277,21 @@ class PromptLogger:
         since: Optional[Union[str, datetime.datetime]] = None,
         limit: int = 1000,
     ) -> List[PromptRecord]:
-        """Search records with optional filters.
+        """Search records with optional filters."""
+        if self.backend == "jsonl":
+            results = list(self._jsonl_records)
+            if query:
+                q = query.lower()
+                results = [r for r in results if q in r.prompt.lower() or q in r.response.lower()]
+            if model:
+                results = [r for r in results if r.model == model]
+            if tag:
+                results = [r for r in results if tag in r.tags]
+            if since:
+                since_str = since.isoformat() if isinstance(since, datetime.datetime) else since
+                results = [r for r in results if r.timestamp >= since_str]
+            return results[:limit]
 
-        Args:
-            query: Full-text search in prompt/response (case-insensitive)
-            model: Filter by model name
-            tag: Filter by tag (exact match)
-            since: Filter by timestamp (ISO format string or datetime object)
-            limit: Maximum number of results to return
-
-        Returns:
-            List of matching PromptRecord objects
-        """
         sql = "SELECT * FROM records WHERE 1=1"
         params: List[Any] = []
 
@@ -507,10 +526,21 @@ class PromptLogger:
                 conn.close()
 
     def close(self) -> None:
-        """Close persistent connection if using in-memory database."""
+        """Close connections."""
+        if self.backend == "jsonl":
+            return  # JSONL writes are immediate; nothing to close
         if self._persistent_conn:
             self._persistent_conn.close()
             self._persistent_conn = None
+
+    def __enter__(self) -> "PromptLogger":
+        """Support use as context manager."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        """Close on context manager exit."""
+        self.close()
+        return False
 
 
 # Global logger instance for session context manager
