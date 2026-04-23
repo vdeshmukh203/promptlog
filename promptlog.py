@@ -201,8 +201,8 @@ class PromptLogger:
         model: str = "",
         tags: Optional[List[str]] = None,
         metadata: Optional[Dict[str, Any]] = None,
-    ) -> PromptRecord:
-        """Log a prompt/response pair."""
+    ) -> int:
+        """Log a prompt/response pair. Returns the integer record ID."""
         if tags is None:
             tags = []
         if metadata is None:
@@ -220,7 +220,7 @@ class PromptLogger:
             self._jsonl_records.append(record)
             with open(self.db_path, "a", encoding="utf-8") as f:
                 f.write(json.dumps(record.to_dict()) + "\n")
-            return record
+            return len(self._jsonl_records)
 
         conn = self._get_connection()
         try:
@@ -257,7 +257,7 @@ class PromptLogger:
             if self._persistent_conn is None:
                 conn.close()
 
-        return record
+        return record_id
 
     def count(self) -> int:
         """Return total number of logged records."""
@@ -645,16 +645,14 @@ def main():
             if args.metadata:
                 metadata = json.loads(args.metadata)
 
-            record = logger.log(
+            record_id = logger.log(
                 prompt=args.prompt,
                 response=args.response,
                 model=args.model,
                 tags=args.tag,
                 metadata=metadata,
             )
-            print(f"Logged record {record.record_id}")
-            print(f"  Prompt hash: {record.prompt_hash[:16]}...")
-            print(f"  Response hash: {record.response_hash[:16]}...")
+            print(f"Logged record {record_id}")
 
         elif args.command == "search":
             results = logger.search(
