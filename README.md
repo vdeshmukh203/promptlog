@@ -1,4 +1,4 @@
- # promptlog
+   # promptlog
 
 Provider-agnostic LLM interaction logger with SHA-256 tamper-evident provenance.
 
