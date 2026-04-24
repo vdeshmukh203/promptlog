@@ -58,22 +58,13 @@ class PromptRecord:
     def __post_init__(self):
         """Compute hashes and set defaults after initialization."""
         if not self.prompt_hash:
-            object.__setattr__(
-                self, "prompt_hash",
-                hashlib.sha256(self.prompt.encode()).hexdigest()
-            )
+            self.prompt_hash = hashlib.sha256(self.prompt.encode()).hexdigest()
         if not self.response_hash:
-            object.__setattr__(
-                self, "response_hash",
-                hashlib.sha256(self.response.encode()).hexdigest()
-            )
+            self.response_hash = hashlib.sha256(self.response.encode()).hexdigest()
         if not self.timestamp:
-            object.__setattr__(
-                self, "timestamp",
-                datetime.datetime.utcnow().isoformat()
-            )
+            self.timestamp = datetime.datetime.utcnow().isoformat()
         if not self.session_id:
-            object.__setattr__(self, "session_id", str(uuid.uuid4()))
+            self.session_id = str(uuid.uuid4())
 
     @staticmethod
     def _compute_hash(text: str) -> str:
@@ -117,7 +108,7 @@ class PromptRecord:
 class PromptLogger:
     """SQLite/JSONL-backed logger for prompt/response pairs with search and export."""
 
-    def __init__(self, db_path: Union[str, Path] = ":memory:", backend: str = "sqlite"):
+    def __init__(self, db_path: Union[str, Path] = ":memory:", backend: str = "sqlite", session_name: str = ""):
         """Initialize logger.
 
         Args:
@@ -126,6 +117,7 @@ class PromptLogger:
         """
         self.db_path = str(db_path)
         self.backend = backend
+        self._session_name = session_name
         # For in-memory databases, keep a persistent connection
         self._persistent_conn: Optional[sqlite3.Connection] = None
         self._jsonl_records: List[PromptRecord] = []
@@ -215,6 +207,8 @@ class PromptLogger:
             tags=tags,
             metadata=metadata,
         )
+        if self._session_name:
+            record.session_id = self._session_name
 
         if self.backend == "jsonl":
             self._jsonl_records.append(record)
@@ -252,7 +246,7 @@ class PromptLogger:
                 )
 
             conn.commit()
-            object.__setattr__(record, "record_id", record_id)
+            record.record_id = record_id
         finally:
             if self._persistent_conn is None:
                 conn.close()
@@ -410,6 +404,12 @@ class PromptLogger:
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
 
+        if self.backend == "jsonl":
+            with open(path, "w", encoding="utf-8") as f:
+                for record in self._jsonl_records:
+                    f.write(json.dumps(record.to_dict()) + "\n")
+            return len(self._jsonl_records)
+
         count = 0
         conn = self._get_connection()
         try:
@@ -489,6 +489,19 @@ class PromptLogger:
 
     def get_stats(self) -> Dict[str, Any]:
         """Get statistics about logged records."""
+        if self.backend == "jsonl":
+            records = self._jsonl_records
+            total = len(records)
+            models: Dict[str, int] = {}
+            for r in records:
+                key = r.model or "unknown"
+                models[key] = models.get(key, 0) + 1
+            tags: Dict[str, int] = {}
+            for r in records:
+                for t in (r.tags or []):
+                    tags[t] = tags.get(t, 0) + 1
+            avg_prompt = sum(len(r.prompt) for r in records) / total if total else 0.0
+            return {"total": total, "models": models, "tags": tags, "avg_prompt_length": avg_prompt}
         conn = self._get_connection()
         try:
             total = conn.execute("SELECT COUNT(*) FROM records").fetchone()[0]
@@ -565,7 +578,7 @@ def session(
     Yields:
         PromptLogger instance
     """
-    logger = PromptLogger(db_path)
+    logger = PromptLogger(db_path, session_name=session_name)
     try:
         yield logger
     finally:
