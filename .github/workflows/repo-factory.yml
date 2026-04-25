@@ -1,0 +1,25 @@
+name: Repo Factory
+on:
+  workflow_dispatch:
+    inputs:
+      repo:
+        description: "Repo to create (or "all")"
+        required: true
+        default: "all"
+jobs:
+  factory:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Run factory
+        env:
+          GITHUB_TOKEN: ${{ secrets.FACTORY_PAT }}
+        run: |
+          if [ "${{ github.event.inputs.repo }}" = "all" ]; then
+            python scripts/factory.py --all --token "$GITHUB_TOKEN"
+          else
+            python scripts/factory.py --repo "${{ github.event.inputs.repo }}" --token "$GITHUB_TOKEN"
+          fi
