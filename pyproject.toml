@@ -5,27 +5,25 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "promptlog"
 version = "0.1.0"
-description = "Provider-agnostic LLM interaction logger with SHA-256 tamper-evident provenance"
+description = "Provider-agnostic LLM interaction logger with SHA-256 tamper detection"
 readme = "README.md"
 license = {file = "LICENSE"}
 authors = [{name = "Vaibhav Deshmukh", email = "vdeshmukh203@gmail.com"}]
 requires-python = ">=3.8"
-keywords = ["llm", "logging", "reproducibility", "openai", "anthropic", "provenance"]
+dependencies = []
+keywords = ["llm", "logging", "tamper-detection", "jsonl", "openai", "anthropic", "gemini"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: System :: Logging",
 ]
 
-[project.scripts]
-promptlog = "promptlog:_cli"
+[project.optional-dependencies]
+dev = ["pytest>=7"]
 
-[tool.setuptools]
-py-modules = ["promptlog"]
+[tool.setuptools.packages.find]
+where = ["src"]
