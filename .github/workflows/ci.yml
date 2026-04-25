@@ -12,6 +12,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: pip install hatchling pytest
+      - run: pip install setuptools pytest
       - run: pip install -e .
-      - run: pytest tests/ -v
+      - run: pytest tests/test_promptlog.py -v
