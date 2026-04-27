@@ -1,22 +1,55 @@
 """Built-in provider rules for popular LLM HTTP APIs.
 
 Each :class:`ProviderRule` declares:
-  * a URL matcher (host + path -> bool)
-  * a request extractor that pulls (prompt, model, params) from the body
-  * a response extractor that pulls (response, usage) from the body
 
-Compose a rule with a custom matcher via :func:`make_provider`.
+* a URL matcher (``host, path -> bool``)
+* a request extractor that pulls ``(prompt, model, params)`` from the body
+* a response extractor that pulls ``(response, usage)`` from the body
+
+Compose a custom rule with :func:`make_provider`.
+
+Built-in rules
+--------------
+:data:`OPENAI_CHAT`
+    ``POST /v1/chat/completions`` on ``api.openai.com`` or Azure OpenAI.
+:data:`ANTHROPIC_MESSAGES`
+    ``POST /v1/messages`` on ``api.anthropic.com``.
+:data:`GOOGLE_GENERATE`
+    ``POST /v1beta/models/{model}:generateContent`` on
+    ``generativelanguage.googleapis.com``.
+:data:`DEFAULT_PROVIDERS`
+    List containing all three rules above, used by :func:`~promptlog.install`
+    when no custom providers are specified.
 """
 
 from __future__ import annotations
 
 import json
+import warnings
 from dataclasses import dataclass
 from typing import Any, Callable
 
 
 @dataclass(frozen=True)
 class ProviderRule:
+    """Immutable descriptor for a single LLM provider endpoint.
+
+    Parameters
+    ----------
+    name:
+        Human-readable identifier used in log metadata (e.g.
+        ``"openai.chat_completions"``).
+    match:
+        Callable ``(host: str, path: str) -> bool`` that returns ``True``
+        when a request should be logged by this rule.
+    extract_request:
+        Callable ``(body: bytes, path: str) -> dict`` that parses the request
+        body and returns at minimum ``{"prompt": str, "model": str}``.
+    extract_response:
+        Callable ``(body: bytes) -> dict`` that parses the response body and
+        returns at minimum ``{"response": str}``.
+    """
+
     name: str
     match: Callable[[str, str], bool]
     extract_request: Callable[[bytes, str], dict[str, Any]]
@@ -24,11 +57,31 @@ class ProviderRule:
 
 
 def make_provider(base: ProviderRule, *, match: Callable[[str, str], bool]) -> ProviderRule:
-    """Return a copy of ``base`` with a different URL matcher (useful for tests)."""
+    """Return a copy of *base* with a different URL matcher.
+
+    This is the recommended way to create provider rules for testing or for
+    self-hosted deployments where the hostname differs from the public API.
+
+    Parameters
+    ----------
+    base:
+        Existing :class:`ProviderRule` whose extractors you want to reuse.
+    match:
+        Replacement ``(host, path) -> bool`` function.
+
+    Example
+    -------
+    >>> from promptlog.providers import OPENAI_CHAT, make_provider
+    >>> local_openai = make_provider(
+    ...     OPENAI_CHAT,
+    ...     match=lambda h, p: h == "localhost" and p.endswith("/chat/completions"),
+    ... )
+    """
     return ProviderRule(base.name, match, base.extract_request, base.extract_response)
 
 
 def _decode_json(body: bytes | None) -> dict[str, Any]:
+    """Decode *body* as UTF-8 JSON, returning an empty dict on any error."""
     if not body:
         return {}
     try:
@@ -194,11 +247,36 @@ GOOGLE_GENERATE = ProviderRule(
 DEFAULT_PROVIDERS: list[ProviderRule] = [OPENAI_CHAT, ANTHROPIC_MESSAGES, GOOGLE_GENERATE]
 
 
-def match_provider(providers, host: str, path: str) -> ProviderRule | None:
+def match_provider(providers: list[ProviderRule], host: str, path: str) -> ProviderRule | None:
+    """Return the first provider whose matcher accepts ``(host, path)``.
+
+    Matcher exceptions are caught and reported as :class:`RuntimeWarning` so
+    a broken custom rule cannot silently discard log entries or crash the
+    caller.
+
+    Parameters
+    ----------
+    providers:
+        Ordered list of :class:`ProviderRule` objects to test.
+    host:
+        Hostname from the HTTP request (e.g. ``"api.openai.com"``).
+    path:
+        URL path component (e.g. ``"/v1/chat/completions"``).
+
+    Returns
+    -------
+    ProviderRule or None
+        The first matching rule, or ``None`` if no rule matches.
+    """
     for p in providers:
         try:
             if p.match(host, path):
                 return p
-        except Exception:
-            continue
+        except Exception as exc:
+            warnings.warn(
+                f"promptlog: provider rule {p.name!r} matcher raised an exception "
+                f"for host={host!r} path={path!r}: {exc}",
+                RuntimeWarning,
+                stacklevel=2,
+            )
     return None

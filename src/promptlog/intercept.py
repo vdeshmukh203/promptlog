@@ -19,6 +19,7 @@ from __future__ import annotations
 import http.client
 import os
 import time
+import warnings
 from typing import Iterable
 
 from .logger import PromptLogger
@@ -147,6 +148,20 @@ def install(
     Returns an :class:`Interceptor` handle. Call :func:`uninstall` to undo.
     Streaming (``text/event-stream``) responses are passed through unmodified
     and not logged.
+
+    Parameters
+    ----------
+    path:
+        File path for the JSONL log. Created if it does not exist.
+    providers:
+        Override the default provider rules. Defaults to
+        :data:`~promptlog.providers.DEFAULT_PROVIDERS`.
+
+    Raises
+    ------
+    RuntimeError
+        If :func:`install` has already been called without a matching
+        :func:`uninstall`.
     """
     global _INSTALLED
     if _INSTALLED is not None:
@@ -176,7 +191,12 @@ def install(
                 "body": _normalize_body(body),
                 "started_at": time.monotonic(),
             }
-        except Exception:
+        except Exception as exc:  # pragma: no cover
+            warnings.warn(
+                f"promptlog: failed to capture request metadata: {exc}",
+                RuntimeWarning,
+                stacklevel=2,
+            )
             self._promptlog_captured = None
         return orig_request(self, method, url, body, headers, *args, **kwargs)
 
@@ -196,14 +216,23 @@ def install(
         try:
             if response.headers:
                 ctype = response.headers.get("Content-Type", "") or ""
-        except Exception:
-            ctype = ""
+        except Exception as exc:  # pragma: no cover
+            warnings.warn(
+                f"promptlog: failed to read Content-Type header: {exc}",
+                RuntimeWarning,
+                stacklevel=2,
+            )
         if "event-stream" in ctype.lower():
             return response
 
         try:
             body = response.read()
-        except Exception:
+        except Exception as exc:
+            warnings.warn(
+                f"promptlog: failed to read response body for logging ({rule.name}): {exc}",
+                RuntimeWarning,
+                stacklevel=2,
+            )
             return response
 
         latency_ms = int((time.monotonic() - captured["started_at"]) * 1000)
@@ -227,8 +256,12 @@ def install(
                 model=resp_info.get("raw_model") or req_info.get("model", "") or "",
                 metadata=metadata,
             )
-        except Exception:
-            pass
+        except Exception as exc:
+            warnings.warn(
+                f"promptlog: failed to log {rule.name} call: {exc}",
+                RuntimeWarning,
+                stacklevel=2,
+            )
 
         return _CachedBodyResponse(response, body)
 
@@ -254,4 +287,5 @@ def uninstall() -> None:
 
 
 def is_installed() -> bool:
+    """Return ``True`` if :func:`install` has been called and not yet undone."""
     return _INSTALLED is not None

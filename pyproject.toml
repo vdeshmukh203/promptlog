@@ -11,19 +11,27 @@ license = {file = "LICENSE"}
 authors = [{name = "Vaibhav Deshmukh", email = "vdeshmukh203@gmail.com"}]
 requires-python = ">=3.8"
 dependencies = []
-keywords = ["llm", "logging", "tamper-detection", "jsonl", "openai", "anthropic", "gemini"]
+keywords = ["llm", "logging", "tamper-detection", "jsonl", "openai", "anthropic", "gemini", "reproducibility"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: System :: Logging",
 ]
 
+[project.scripts]
+promptlog-gui = "promptlog.gui:main"
+
 [project.optional-dependencies]
-dev = ["pytest>=7"]
+dev = ["pytest>=7", "pyflakes"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
