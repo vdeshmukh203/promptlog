@@ -500,8 +500,15 @@ class PromptLogger:
             for r in records:
                 for t in (r.tags or []):
                     tags[t] = tags.get(t, 0) + 1
-            avg_prompt = sum(len(r.prompt) for r in records) / total if total else 0.0
-            return {"total": total, "models": models, "tags": tags, "avg_prompt_length": avg_prompt}
+            first_ts = records[0].timestamp if records else None
+            last_ts = records[-1].timestamp if records else None
+            return {
+                "total_records": total,
+                "models": models,
+                "tags": tags,
+                "first_record": first_ts,
+                "last_record": last_ts,
+            }
         conn = self._get_connection()
         try:
             total = conn.execute("SELECT COUNT(*) FROM records").fetchone()[0]

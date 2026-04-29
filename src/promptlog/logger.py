@@ -42,8 +42,15 @@ class PromptLogger:
         last_hash = GENESIS_HASH
         count = 0
         valid_end = 0
+        # Use readline() so that f.tell() tracks line boundaries correctly.
+        # Iterating with `for raw in f` uses an internal read-ahead buffer that
+        # causes f.tell() to jump ahead by buffer-size (8 KB) rather than one
+        # line at a time, making valid_end wrong when truncation is needed.
         with self.path.open("r+b") as f:
-            for raw in f:
+            while True:
+                raw = f.readline()
+                if not raw:
+                    break
                 line = raw.strip()
                 if not line:
                     valid_end = f.tell()

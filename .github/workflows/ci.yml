@@ -14,4 +14,4 @@ jobs:
           python-version: "3.11"
       - run: pip install setuptools pytest
       - run: pip install -e .
-      - run: pytest tests/test_promptlog.py -v
+      - run: pytest tests/ -v
