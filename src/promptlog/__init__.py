@@ -21,3 +21,9 @@ __all__ = [
     "uninstall",
     "is_installed",
 ]
+
+
+def gui() -> None:
+    """Launch the graphical log viewer (requires tkinter)."""
+    from .gui import main as _gui_main
+    _gui_main()

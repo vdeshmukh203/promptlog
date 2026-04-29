@@ -22,6 +22,10 @@ classifiers = [
     "Topic :: System :: Logging",
 ]
 
+[project.scripts]
+promptlog = "promptlog.__main__:main"
+promptlog-gui = "promptlog.gui:main"
+
 [project.optional-dependencies]
 dev = ["pytest>=7"]
 

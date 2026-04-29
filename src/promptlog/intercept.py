@@ -89,7 +89,9 @@ class _CachedBodyResponse:
 
     @property
     def closed(self) -> bool:
-        return self._manually_closed or self._pos >= len(self._body)
+        # A fully-read response is not the same as a closed one; only track
+        # explicit close() calls so callers can reuse connections correctly.
+        return self._manually_closed
 
     def isclosed(self) -> bool:
         return self.closed
