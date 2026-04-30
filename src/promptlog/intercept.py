@@ -18,7 +18,9 @@ from __future__ import annotations
 
 import http.client
 import os
+import sys
 import time
+import traceback
 from typing import Iterable
 
 from .logger import PromptLogger
@@ -116,9 +118,10 @@ class _CachedBodyResponse:
 class Interceptor:
     """Handle for an active interception. Use :func:`install` / :func:`uninstall`."""
 
-    def __init__(self, logger: PromptLogger, providers: list[ProviderRule]) -> None:
+    def __init__(self, logger: PromptLogger, providers: list[ProviderRule], debug: bool = False) -> None:
         self.logger = logger
         self.providers = list(providers)
+        self.debug = debug
 
 
 _INSTALLED: dict | None = None
@@ -141,12 +144,13 @@ def install(
     path: str | os.PathLike[str],
     *,
     providers: Iterable[ProviderRule] | None = None,
+    debug: bool = False,
 ) -> Interceptor:
     """Patch ``http.client.HTTPConnection`` to auto-log matching LLM API calls.
 
     Returns an :class:`Interceptor` handle. Call :func:`uninstall` to undo.
     Streaming (``text/event-stream``) responses are passed through unmodified
-    and not logged.
+    and not logged. Set *debug=True* to print extraction warnings to stderr.
     """
     global _INSTALLED
     if _INSTALLED is not None:
@@ -156,7 +160,7 @@ def install(
 
     logger = PromptLogger(path)
     rules = list(providers) if providers is not None else list(DEFAULT_PROVIDERS)
-    interceptor = Interceptor(logger, rules)
+    interceptor = Interceptor(logger, rules, debug=debug)
 
     orig_request = http.client.HTTPConnection.request
     orig_getresponse = http.client.HTTPConnection.getresponse
@@ -228,7 +232,12 @@ def install(
                 metadata=metadata,
             )
         except Exception:
-            pass
+            if interceptor.debug:
+                print(
+                    f"[promptlog] WARNING: failed to extract/log {rule.name} "
+                    f"response from {host}{url}:\n{traceback.format_exc()}",
+                    file=sys.stderr,
+                )
 
         return _CachedBodyResponse(response, body)
 
