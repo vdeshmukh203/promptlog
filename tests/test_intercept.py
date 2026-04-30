@@ -128,9 +128,9 @@ def _read_log(path: Path) -> list[dict]:
     return [json.loads(l) for l in path.read_text().splitlines() if l.strip()]
 
 
-def test_intercept_three_providers(tmpdir: Path) -> None:
+def test_intercept_three_providers(tmp_path: Path) -> None:
     _section("auto-log OpenAI + Anthropic + Gemini through urllib")
-    log_path = tmpdir / "auto.jsonl"
+    log_path = tmp_path / "auto.jsonl"
     server, base = _start_server()
     try:
         promptlog.install(log_path, providers=_local_providers())
@@ -202,9 +202,9 @@ def test_intercept_three_providers(tmpdir: Path) -> None:
     print("OK: 3 auto-captured entries, hash chain still valid.")
 
 
-def test_unmatched_calls_are_not_logged(tmpdir: Path) -> None:
+def test_unmatched_calls_are_not_logged(tmp_path: Path) -> None:
     _section("non-matching POSTs pass through unmodified and are not logged")
-    log_path = tmpdir / "unmatched.jsonl"
+    log_path = tmp_path / "unmatched.jsonl"
     server, base = _start_server()
     try:
         promptlog.install(log_path, providers=_local_providers())
@@ -221,14 +221,14 @@ def test_unmatched_calls_are_not_logged(tmpdir: Path) -> None:
     print("OK: unrelated traffic untouched.")
 
 
-def test_uninstall_restores_original(tmpdir: Path) -> None:
+def test_uninstall_restores_original(tmp_path: Path) -> None:
     _section("uninstall restores original http.client behaviour")
     import http.client
 
     orig_request = http.client.HTTPConnection.request
     orig_getresponse = http.client.HTTPConnection.getresponse
 
-    log_path = tmpdir / "restore.jsonl"
+    log_path = tmp_path / "restore.jsonl"
     promptlog.install(log_path, providers=_local_providers())
     assert promptlog.is_installed()
     assert http.client.HTTPConnection.request is not orig_request

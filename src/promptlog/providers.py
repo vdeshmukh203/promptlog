@@ -123,7 +123,7 @@ def _anthropic_extract_response(body: bytes) -> dict[str, Any]:
         "usage": data.get("usage"),
         "raw_model": data.get("model"),
         "id": data.get("id"),
-        "stop_reason": data.get("stop_reason"),
+        "finish_reason": data.get("stop_reason"),
     }
 
 

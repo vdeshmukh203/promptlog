@@ -20,4 +20,7 @@ __all__ = [
     "install",
     "uninstall",
     "is_installed",
+    # gui.main is intentionally not imported here to avoid pulling in tkinter
+    # at library import time; users invoke it via `promptlog-viewer` or
+    # `from promptlog.gui import main`.
 ]
