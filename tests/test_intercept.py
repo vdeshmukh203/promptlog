@@ -125,7 +125,7 @@ def _post_json(url: str, payload: dict) -> dict:
 
 
 def _read_log(path: Path) -> list[dict]:
-    return [json.loads(l) for l in path.read_text().splitlines() if l.strip()]
+    return [json.loads(l) for l in Path(path).read_text(encoding="utf-8").splitlines() if l.strip()]
 
 
 def test_intercept_three_providers(tmpdir: Path) -> None:
@@ -217,7 +217,7 @@ def test_unmatched_calls_are_not_logged(tmpdir: Path) -> None:
             promptlog.uninstall()
     finally:
         server.shutdown()
-    assert not log_path.exists() or log_path.read_text() == "", "no entries should be written"
+    assert not Path(log_path).exists() or Path(log_path).read_text(encoding="utf-8") == "", "no entries should be written"
     print("OK: unrelated traffic untouched.")
 
 

@@ -10,6 +10,7 @@ __version__ = "0.1.0"
 __author__ = "Vaibhav Deshmukh"
 __license__ = "MIT"
 
+from .gui import launch as launch_gui
 from .intercept import install, is_installed, uninstall
 from .logger import PromptLogger
 from .verify import verify_log
@@ -20,4 +21,5 @@ __all__ = [
     "install",
     "uninstall",
     "is_installed",
+    "launch_gui",
 ]

@@ -25,5 +25,11 @@ classifiers = [
 [project.optional-dependencies]
 dev = ["pytest>=7"]
 
+[project.scripts]
+promptlog-gui = "promptlog.gui:_main"
+
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
