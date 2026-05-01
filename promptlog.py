@@ -39,6 +39,8 @@ import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
+_UTC = datetime.timezone.utc
+
 
 @dataclasses.dataclass
 class PromptRecord:
@@ -62,7 +64,7 @@ class PromptRecord:
         if not self.response_hash:
             self.response_hash = hashlib.sha256(self.response.encode()).hexdigest()
         if not self.timestamp:
-            self.timestamp = datetime.datetime.utcnow().isoformat()
+            self.timestamp = datetime.datetime.now(_UTC).isoformat()
         if not self.session_id:
             self.session_id = str(uuid.uuid4())
 
@@ -501,7 +503,14 @@ class PromptLogger:
                 for t in (r.tags or []):
                     tags[t] = tags.get(t, 0) + 1
             avg_prompt = sum(len(r.prompt) for r in records) / total if total else 0.0
-            return {"total": total, "models": models, "tags": tags, "avg_prompt_length": avg_prompt}
+            return {
+                "total_records": total,
+                "models": models,
+                "tags": tags,
+                "avg_prompt_length": avg_prompt,
+                "first_record": records[-1].timestamp if records else None,
+                "last_record": records[0].timestamp if records else None,
+            }
         conn = self._get_connection()
         try:
             total = conn.execute("SELECT COUNT(*) FROM records").fetchone()[0]
@@ -643,10 +652,10 @@ def main():
     import_parser.add_argument("input", help="Input file path")
 
     # stats subcommand
-    stats_parser = subparsers.add_parser("stats", help="Show database statistics")
+    subparsers.add_parser("stats", help="Show database statistics")
 
     # clear subcommand
-    clear_parser = subparsers.add_parser("clear", help="Delete all records (use with caution)")
+    subparsers.add_parser("clear", help="Delete all records (use with caution)")
 
     args = parser.parse_args()
 

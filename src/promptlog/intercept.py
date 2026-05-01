@@ -89,10 +89,12 @@ class _CachedBodyResponse:
 
     @property
     def closed(self) -> bool:
-        return self._manually_closed or self._pos >= len(self._body)
+        return self._manually_closed
 
     def isclosed(self) -> bool:
-        return self.closed
+        # http.client uses isclosed() to decide whether a connection can be
+        # reused; treat a fully-consumed body the same as an explicit close.
+        return self._manually_closed or self._pos >= len(self._body)
 
     def getheader(self, name, default=None):
         return self._real.getheader(name, default)
